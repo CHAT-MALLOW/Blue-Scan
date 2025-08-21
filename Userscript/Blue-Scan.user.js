@@ -1,10 +1,14 @@
 // ==UserScript==
-// @name         Blue Scan UI — strict BM placement (TL + Template), detourage & tiles
+// @name         Blue Scan UI — strict BM (TL + Template), détourage & tuilage — GM XHR
 // @namespace    pinouland.blue-scan.ui
-// @version      0.6.1
-// @description  Panneau bleu pour piloter le watchdog: création via TL+Template (taille native), config, liste, snapshot sol/baseline, modes, tuilage & scan simultané. (Sans Discord, logs simulés côté backend.)
+// @version      0.6.4
+// @description  Panneau Blue Scan (mode Blue Marble strict). Création via TL+Template (taille native), config, liste, snapshots sol/baseline, modes, tuilage & scan simultané. Appels backend via GM_xmlhttpRequest (OK sans HTTPS/domaine).
 // @match        https://wplace.live/*
 // @grant        GM_addStyle
+// @grant        GM_xmlhttpRequest
+// @connect      82.112.240.14
+// @connect      localhost
+// @connect      *
 // @run-at       document-end
 // ==/UserScript==
 
@@ -13,9 +17,27 @@
 
   // ================== Helpers de base ==================
   const LS_KEY = "BLUE_SCAN_BACKEND_URL";
-  const BACKEND_URL = (localStorage.getItem(LS_KEY) || "http://localhost:8000").replace(/\/$/, "");
-  const api = (p, o = {}) =>
-    fetch(BACKEND_URL + p, Object.assign({ headers: { "Content-Type": "application/json" } }, o));
+  // Défault : ton IP publique (+ port backend). Modifie si besoin :
+  const DEFAULT_BACKEND = "http://82.112.240.14:8000";
+  const BACKEND_URL = (localStorage.getItem(LS_KEY) || DEFAULT_BACKEND).replace(/\/$/, "");
+
+  // Appel API via GM_xmlhttpRequest pour éviter Mixed Content / CORS
+  const api = (path, opts = {}) =>
+    new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: opts.method || "GET",
+        url: BACKEND_URL + path,
+        headers: Object.assign({ "Content-Type": "application/json" }, opts.headers || {}),
+        data: opts.body || null,
+        onload: (r) => {
+          // Response "fetch-like"
+          const resp = new Response(r.responseText, { status: r.status, statusText: r.statusText });
+          resolve(resp);
+        },
+        onerror: reject,
+        ontimeout: reject,
+      });
+    });
 
   function mainCanvas() {
     const cs = Array.from(document.querySelectorAll("canvas"));
@@ -418,7 +440,14 @@
   }
 
   // ================== Nav boutons ==================
-  el.btnConfig.onclick = async () => { try { renderConfig(await loadConfig()); } catch { setStatus("Backend injoignable ?"); } };
+  el.btnConfig.onclick = async () => {
+    try {
+      const c = await loadConfig();
+      renderConfig(c);
+    } catch {
+      setStatus("Backend injoignable ?");
+    }
+  };
   el.btnList.onclick = renderList;
 
   let running = false;
@@ -426,4 +455,16 @@
     try {
       if (!running) {
         const r = await api("/monitor/start", { method: "POST" });
-        if (r.ok) { running = true; el.bt
+        if (r.ok) { running = true; el.btnMonitor.textContent = "Stop"; setDot("#1dd75f"); setStatus("Surveillance ..."); }
+        else setStatus("Start KO.");
+      } else {
+        const r = await api("/monitor/stop", { method: "POST" });
+        if (r.ok) { running = false; el.btnMonitor.textContent = "Start"; setDot("#8b97a8"); setStatus("Arrêté."); }
+        else setStatus("Stop KO.");
+      }
+    } catch { setStatus("Action monitor KO."); }
+  };
+
+  // ================== Boot ==================
+  renderList(); // feedback immédiat
+})();
