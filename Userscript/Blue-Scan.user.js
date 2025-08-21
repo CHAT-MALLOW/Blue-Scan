@@ -7,8 +7,6 @@
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
 // @connect      82.112.240.14
-// @connect      localhost
-// @connect      *
 // @run-at       document-end
 // ==/UserScript==
 
