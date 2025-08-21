@@ -29,7 +29,7 @@
     setTimeout(()=>t.remove(), 1100);
   } catch {}
 
-  // ---- Re-injection si le DOM bouge (SPA) ----
+  // ---- Ré-injection si le DOM bouge (SPA) ----
   new MutationObserver(() => { if (!document.getElementById('bsui-root')) injectUI(); })
     .observe(document.documentElement, { childList:true, subtree:true });
   window.addEventListener('pageshow', () => { if (!document.getElementById('bsui-root')) injectUI(); });
